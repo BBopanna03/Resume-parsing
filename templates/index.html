@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Parser</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+    <style>
+        .drag-area {
+            border: 2px dashed #6c757d;
+            min-height: 200px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+        
+        .drag-area.active {
+            border-color: #007bff;
+        }
+        
+        .spinner-border {
+            display: none;
+        }
+        
+        .section-card {
+            margin-bottom: 15px;
+        }
+        
+        .section-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .section-content {
+            white-space: pre-line;
+        }
+        
+        .personal-details {
+            display: block; /* Ensures elements stack vertically */
+        }
+        
+        .personal-detail-item {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px; /* Adds spacing between items */
+            width: 100%; /* Ensures each item takes full width */
+        }
+            
+        .about-section {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="text-center mb-4">Resume Parser</h1>
+        
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Upload Resume</h5>
+                <p class="card-text text-muted">Upload a resume in PDF, DOCX, or TXT format to extract information.</p>
+                
+                <div class="drag-area" id="dropArea">
+                    <div class="icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="currentColor" class="bi bi-file-earmark-arrow-up" viewBox="0 0 16 16">
+                            <path d="M8.5 11.5a.5.5 0 0 1-1 0V7.707L6.354 8.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 7.707V11.5z"/>
+                            <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                        </svg>
+                    </div>
+                    <h5>Drag & Drop your resume here</h5>
+                    <p>or</p>
+                    <button class="btn btn-primary" id="browseBtn">Browse Files</button>
+                    <input type="file" hidden id="fileInput" accept=".pdf, .docx, .txt">
+                </div>
+                
+                <div class="text-center mt-3">
+                    <div class="spinner-border text-primary" id="loadingSpinner" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div id="errorMessage" class="alert alert-danger mt-3" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="resultsContainer" class="mt-4" style="display: none;">
+            <h2 class="mb-4">Parsed Resume</h2>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="mb-0">Personal Details</h3>
+                </div>
+                <div class="card-body">
+                    <div class="personal-details" id="personalDetails">
+                        <!-- Personal details will be inserted here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="mb-0">About</h3>
+                </div>
+                <div class="card-body">
+                    <div class="about-section" id="aboutSection">
+                        <!-- About content will be inserted here -->
+                    </div>
+                </div>
+            </div>
+            
+            <h3 class="mb-3">Resume Sections</h3>
+            <div id="sectionsList">
+                <!-- Sections will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        $(document).ready(function() {
+            const dropArea = $('#dropArea');
+            const fileInput = $('#fileInput');
+            const browseBtn = $('#browseBtn');
+            const loadingSpinner = $('#loadingSpinner');
+            const errorMessage = $('#errorMessage');
+            const resultsContainer = $('#resultsContainer');
+            
+            // Trigger file input when browse button is clicked
+            browseBtn.click(function() {
+                fileInput.click();
+            });
+            
+            // Handle file selection
+            fileInput.change(function() {
+                const file = this.files[0];
+                if (file) {
+                    processFile(file);
+                }
+            });
+            
+            // Prevent default behavior for drag events
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.on(eventName, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+            
+            // Handle drag enter and leave
+            dropArea.on('dragenter dragover', function() {
+                $(this).addClass('active');
+            });
+            
+            dropArea.on('dragleave drop', function() {
+                $(this).removeClass('active');
+            });
+            
+            // Handle file drop
+            dropArea.on('drop', function(e) {
+                const file = e.originalEvent.dataTransfer.files[0];
+                if (file) {
+                    processFile(file);
+                }
+            });
+            
+            function processFile(file) {
+                // Check file extension
+                const validExtensions = ['.pdf', '.docx', '.txt'];
+                const fileName = file.name;
+                const fileExtension = '.' + fileName.split('.').pop().toLowerCase();
+                
+                if (!validExtensions.includes(fileExtension)) {
+                    showError(`File type not supported. Please upload a PDF, DOCX, or TXT file.`);
+                    return;
+                }
+                
+                // Reset UI state
+                errorMessage.hide();
+                resultsContainer.hide();
+                loadingSpinner.show();
+                
+                // Create FormData and send to server
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                $.ajax({
+                    url: '/parse',
+                    method: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function(response) {
+                        loadingSpinner.hide();
+                        
+                        if (response.error) {
+                            showError(response.error);
+                            return;
+                        }
+                        
+                        displayResults(response);
+                    },
+                    error: function(xhr, status, error) {
+                        loadingSpinner.hide();
+                        showError(`Server error: ${error}`);
+                    }
+                });
+            }
+            
+            function displayResults(data) {
+                // Display personal details
+                const personalDetails = $('#personalDetails');
+                personalDetails.empty();
+                
+                if (data.personal_details) {
+                    const details = data.personal_details;
+                    
+                    if (details.name) {
+                        personalDetails.append(`<div class="personal-detail-item"><strong>Name:</strong> ${details.name}</div>`);
+                    }
+                    
+                    if (details.email) {
+                        personalDetails.append(`<div class="personal-detail-item"><strong>Email:</strong> ${details.email}</div>`);
+                    }
+                    
+                    if (details.phone) {
+                        personalDetails.append(`<div class="personal-detail-item"><strong>Phone:</strong> ${details.phone}</div>`);
+                    }
+                    
+                    if (details.linkedin) {
+                        personalDetails.append(`<div class="personal-detail-item"><strong>LinkedIn:</strong> <a href="${details.linkedin}" target="_blank">${details.linkedin}</a></div>`);
+                    }
+                    
+                    if (details.location) {
+                        personalDetails.append(`<div class="personal-detail-item"><strong>Location:</strong> ${details.location}</div>`);
+                    }
+                    
+                    if (details.other_contacts && details.other_contacts.length > 0) {
+                        personalDetails.append(`<div class="personal-detail-item"><strong>Other Contact:</strong> ${details.other_contacts.join(', ')}</div>`);
+                    }
+                }
+                
+                // Display about section
+                const aboutSection = $('#aboutSection');
+                aboutSection.empty();
+                
+                if (data.about) {
+                    aboutSection.text(data.about);
+                } else {
+                    aboutSection.text('No about/summary section found');
+                }
+                
+                // Display sections
+                const sectionsList = $('#sectionsList');
+                sectionsList.empty();
+                
+                if (data.sections && data.sections.length > 0) {
+                    data.sections.forEach(section => {
+                        sectionsList.append(`
+                            <div class="card section-card">
+                                <div class="card-header">
+                                    <h4 class="mb-0">${section.title}</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="section-content">${section.content}</div>
+                                </div>
+                            </div>
+                        `);
+                    });
+                } else {
+                    sectionsList.append('<p>No sections found</p>');
+                }
+                
+                // Show results container
+                resultsContainer.show();
+            }
+            
+            function showError(message) {
+                errorMessage.text(message);
+                errorMessage.show();
+            }
+        });
+    </script>
+</body>
+</html>
